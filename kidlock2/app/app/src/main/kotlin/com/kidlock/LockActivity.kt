@@ -1,7 +1,6 @@
 package com.kidlock
 
 import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
 import android.view.*
 
@@ -9,8 +8,11 @@ class LockActivity : Activity() {
 
     companion object {
         var instance: LockActivity? = null
+
         fun dismiss() {
-            instance?.finish()
+            instance?.runOnUiThread {
+                instance?.finish()
+            }
             instance = null
         }
     }
@@ -42,9 +44,9 @@ class LockActivity : Activity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) {
-            val i = Intent(this, LockActivity::class.java)
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        if (!hasFocus && instance != null) {
+            val i = android.content.Intent(this, LockActivity::class.java)
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             startActivity(i)
         }
     }
