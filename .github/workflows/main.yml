@@ -103,7 +103,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          cd app && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | grep -E "error:|\.kt:[0-9]+" | head -50
+          cd app && ./gradlew assembleDebug --no-daemon --stacktrace
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
