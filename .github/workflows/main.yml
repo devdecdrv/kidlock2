@@ -28,33 +28,95 @@ jobs:
           chmod +x app/gradlew
           printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n' > app/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Write gradle.properties
+      - name: Write Gradle config files
         run: |
-          printf "android.useAndroidX=true\nandroid.enableJetifier=true\norg.gradle.jvmargs=-Xmx2048m\n" > app/gradle.properties
-
-      - name: Write settings.gradle
-        run: |
+          printf 'android.useAndroidX=true\nandroid.enableJetifier=true\norg.gradle.jvmargs=-Xmx2048m\n' > app/gradle.properties
           printf 'rootProject.name = "kidlock"\ninclude ":app"\n' > app/settings.gradle
-
-      - name: Write project build.gradle
-        run: |
           printf 'buildscript {\n    repositories {\n        google()\n        mavenCentral()\n    }\n    dependencies {\n        classpath "com.android.tools.build:gradle:8.2.0"\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22"\n    }\n}\nallprojects {\n    repositories {\n        google()\n        mavenCentral()\n    }\n}\n' > app/build.gradle
 
-      - name: Create app module build.gradle
-        run: |
-          mkdir -p app/app
-          printf 'apply plugin: "com.android.application"\napply plugin: "kotlin-android"\n\nandroid {\n    namespace "com.kidlock"\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.kidlock"\n        minSdk 26\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n            minifyEnabled false\n        }\n    }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }\n    kotlinOptions {\n        jvmTarget = "1.8"\n    }\n    sourceSets {\n        main {\n            manifest.srcFile "src/main/AndroidManifest.xml"\n            java.srcDirs = ["src/main/kotlin"]\n            res.srcDirs = ["src/main/res"]\n        }\n    }\n}\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.12.0"\n    implementation "androidx.appcompat:appcompat:1.6.1"\n}\n' > app/app/build.gradle
-
-      - name: Move source files
+      - name: Create app module structure
         run: |
           mkdir -p app/app/src/main/kotlin/com/kidlock
           mkdir -p app/app/src/main/res/xml
           mkdir -p app/app/src/main/res/layout
-          if [ -d app/src ]; then
-            cp -r app/src/. app/app/src/ 2>/dev/null || true
+          mkdir -p app/app/src/main/res/values
+
+      - name: Write app build.gradle
+        run: |
+          printf 'apply plugin: "com.android.application"\napply plugin: "kotlin-android"\n\nandroid {\n    namespace "com.kidlock"\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.kidlock"\n        minSdk 26\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n            minifyEnabled false\n        }\n    }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }\n    kotlinOptions {\n        jvmTarget = "1.8"\n    }\n}\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.12.0"\n    implementation "androidx.appcompat:appcompat:1.6.1"\n}\n' > app/app/build.gradle
+
+      - name: Write AndroidManifest.xml
+        run: |
+          cat > app/app/src/main/AndroidManifest.xml << 'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools">
+              <uses-permission android:name="android.permission.CAMERA"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+              <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+              <uses-permission android:name="android.permission.WAKE_LOCK"/>
+              <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+              <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions"/>
+              <application
+                  android:allowBackup="false"
+                  android:label="Device Sync"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true" android:excludeFromRecents="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <activity android:name=".LockActivity" android:exported="false"
+                      android:showOnLockScreen="true" android:turnScreenOn="true"
+                      android:excludeFromRecents="true" android:launchMode="singleTask"
+                      android:theme="@style/Theme.AppCompat.NoActionBar"/>
+                  <service android:name=".ChildService" android:exported="false"
+                      android:foregroundServiceType="camera|microphone"/>
+                  <receiver android:name=".AdminReceiver" android:exported="true"
+                      android:permission="android.permission.BIND_DEVICE_ADMIN">
+                      <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
+                      <intent-filter>
+                          <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+                      </intent-filter>
+                  </receiver>
+                  <receiver android:name=".BootReceiver" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                      </intent-filter>
+                  </receiver>
+              </application>
+          </manifest>
+          MANIFEST
+
+      - name: Write device_admin.xml
+        run: |
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<device-admin>\n    <uses-policies>\n        <lock-screen/>\n        <watch-login/>\n    </uses-policies>\n</device-admin>\n' > app/app/src/main/res/xml/device_admin.xml
+
+      - name: Write lock layout
+        run: |
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent"\n    android:layout_height="match_parent"\n    android:background="#000000">\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"\n        android:layout_centerInParent="true" android:text="Phone is locked"\n        android:textColor="#FFFFFF" android:textSize="24sp"/>\n</RelativeLayout>\n' > app/app/src/main/res/layout/activity_lock.xml
+
+      - name: Copy Kotlin source files
+        run: |
+          SRC=""
+          if [ -d kotlin/com/kidlock ]; then SRC="kotlin/com/kidlock"
+          elif [ -d com/kidlock ]; then SRC="com/kidlock"
+          elif [ -d src/main/kotlin/com/kidlock ]; then SRC="src/main/kotlin/com/kidlock"
           fi
-          if [ -d src ]; then
-            cp -r src/. app/app/src/ 2>/dev/null || true
+          if [ -n "$SRC" ]; then
+            cp $SRC/*.kt app/app/src/main/kotlin/com/kidlock/ 2>/dev/null || true
+            echo "Copied from $SRC"
+          else
+            echo "Looking for kt files..."
+            find . -name "*.kt" -not -path "*/build/*" | head -20
           fi
 
       - name: Show final structure
