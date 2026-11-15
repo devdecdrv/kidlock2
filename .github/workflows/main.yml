@@ -129,6 +129,12 @@ jobs:
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
+      - name: Install build tools
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" 2>/dev/null || true
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
         id: sign_apk
