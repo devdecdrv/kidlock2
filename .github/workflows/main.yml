@@ -27,15 +27,38 @@ jobs:
           curl -o app/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar
           chmod +x app/gradlew
           cat > app/gradle/wrapper/gradle-wrapper.properties << 'PROPS'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          PROPS
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+PROPS
 
-      - name: Show repo structure
-        run: find . -type f | head -60
+      - name: Ensure settings.gradle exists
+        run: |
+          if [ ! -f app/settings.gradle ]; then
+            cat > app/settings.gradle << 'SETTINGS'
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "kidlock"
+include ':app'
+SETTINGS
+          fi
+
+      - name: Show structure
+        run: find app -maxdepth 3 -type f
 
       - name: Build Release APK
         run: |
