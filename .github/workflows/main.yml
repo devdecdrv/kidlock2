@@ -35,90 +35,68 @@ jobs:
           printf 'rootProject.name = "kidlock"\ninclude ":app"\n' > app/settings.gradle
           printf 'buildscript {\n    repositories {\n        google()\n        mavenCentral()\n    }\n    dependencies {\n        classpath "com.android.tools.build:gradle:8.2.0"\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22"\n    }\n}\nallprojects {\n    repositories {\n        google()\n        mavenCentral()\n    }\n}\n' > app/build.gradle
 
-      - name: Create app module structure
+      - name: Create app module
         run: |
           mkdir -p app/app/src/main/kotlin/com/kidlock
           mkdir -p app/app/src/main/res/xml
           mkdir -p app/app/src/main/res/layout
+          printf 'apply plugin: "com.android.application"\napply plugin: "kotlin-android"\nandroid {\n    namespace "com.kidlock"\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.kidlock"\n        minSdk 26\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes { release { minifyEnabled false } }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }\n    kotlinOptions { jvmTarget = "1.8" }\n}\ndependencies {\n    implementation "androidx.core:core-ktx:1.12.0"\n    implementation "androidx.appcompat:appcompat:1.6.1"\n}\n' > app/app/build.gradle
 
-      - name: Write app build.gradle
+      - name: Write AndroidManifest
         run: |
-          printf 'apply plugin: "com.android.application"\napply plugin: "kotlin-android"\n\nandroid {\n    namespace "com.kidlock"\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.kidlock"\n        minSdk 26\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n            minifyEnabled false\n        }\n    }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }\n    kotlinOptions {\n        jvmTarget = "1.8"\n    }\n}\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.12.0"\n    implementation "androidx.appcompat:appcompat:1.6.1"\n}\n' > app/app/build.gradle
-
-      - name: Write AndroidManifest.xml
-        run: |
-          cat > app/app/src/main/AndroidManifest.xml << 'XML'
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions"/>
-    <application
-        android:allowBackup="false"
-        android:label="Device Sync"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.NoActionBar">
-        <activity android:name=".MainActivity" android:exported="true" android:excludeFromRecents="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-        </activity>
-        <activity android:name=".LockActivity" android:exported="false"
-            android:showOnLockScreen="true" android:turnScreenOn="true"
-            android:excludeFromRecents="true" android:launchMode="singleTask"
-            android:theme="@style/Theme.AppCompat.NoActionBar"/>
-        <service android:name=".ChildService" android:exported="false"
-            android:foregroundServiceType="camera|microphone"/>
-        <receiver android:name=".AdminReceiver" android:exported="true"
-            android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
-            <intent-filter>
-                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
-            </intent-filter>
-        </receiver>
-        <receiver android:name=".BootReceiver" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-            </intent-filter>
-        </receiver>
-    </application>
-</manifest>
-XML
+          python3 -c "
+          c = open('app/app/src/main/AndroidManifest.xml','w')
+          c.write('<?xml version=\"1.0\" encoding=\"utf-8\"?>\n')
+          c.write('<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\">\n')
+          c.write('    <uses-permission android:name=\"android.permission.CAMERA\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.INTERNET\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_CAMERA\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MICROPHONE\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n')
+          c.write('    <uses-permission android:name=\"android.permission.PACKAGE_USAGE_STATS\" tools:ignore=\"ProtectedPermissions\"/>\n')
+          c.write('    <application android:allowBackup=\"false\" android:label=\"Device Sync\" android:theme=\"@style/Theme.AppCompat.NoActionBar\">\n')
+          c.write('        <activity android:name=\".MainActivity\" android:exported=\"true\" android:excludeFromRecents=\"true\">\n')
+          c.write('            <intent-filter>\n')
+          c.write('                <action android:name=\"android.intent.action.MAIN\"/>\n')
+          c.write('                <category android:name=\"android.intent.category.LAUNCHER\"/>\n')
+          c.write('            </intent-filter>\n')
+          c.write('        </activity>\n')
+          c.write('        <activity android:name=\".LockActivity\" android:exported=\"false\" android:showOnLockScreen=\"true\" android:turnScreenOn=\"true\" android:excludeFromRecents=\"true\" android:launchMode=\"singleTask\" android:theme=\"@style/Theme.AppCompat.NoActionBar\"/>\n')
+          c.write('        <service android:name=\".ChildService\" android:exported=\"false\" android:foregroundServiceType=\"camera|microphone\"/>\n')
+          c.write('        <receiver android:name=\".AdminReceiver\" android:exported=\"true\" android:permission=\"android.permission.BIND_DEVICE_ADMIN\">\n')
+          c.write('            <meta-data android:name=\"android.app.device_admin\" android:resource=\"@xml/device_admin\"/>\n')
+          c.write('            <intent-filter><action android:name=\"android.app.action.DEVICE_ADMIN_ENABLED\"/></intent-filter>\n')
+          c.write('        </receiver>\n')
+          c.write('        <receiver android:name=\".BootReceiver\" android:exported=\"true\">\n')
+          c.write('            <intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/></intent-filter>\n')
+          c.write('        </receiver>\n')
+          c.write('    </application>\n')
+          c.write('</manifest>\n')
+          c.close()
+          "
 
       - name: Write res files
         run: |
           printf '<?xml version="1.0" encoding="utf-8"?>\n<device-admin>\n    <uses-policies>\n        <lock-screen/>\n        <watch-login/>\n    </uses-policies>\n</device-admin>\n' > app/app/src/main/res/xml/device_admin.xml
-          printf '<?xml version="1.0" encoding="utf-8"?>\n<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent" android:layout_height="match_parent"\n    android:background="#000000">\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"\n        android:layout_centerInParent="true" android:text="Phone is locked"\n        android:textColor="#FFFFFF" android:textSize="24sp"/>\n</RelativeLayout>\n' > app/app/src/main/res/layout/activity_lock.xml
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000">\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"\n        android:layout_centerInParent="true" android:text="Phone is locked"\n        android:textColor="#FFFFFF" android:textSize="24sp"/>\n</RelativeLayout>\n' > app/app/src/main/res/layout/activity_lock.xml
 
-      - name: Copy Kotlin source files
+      - name: Copy Kotlin files
         run: |
-          find . -name "*.kt" -not -path "*/build/*" -not -path "*/.git/*" | while read f; do
-            cp "$f" app/app/src/main/kotlin/com/kidlock/ 2>/dev/null || true
-          done
-          echo "Kotlin files copied:"
+          find . -name "*.kt" -not -path "*/build/*" -not -path "*/.git/*" -exec cp {} app/app/src/main/kotlin/com/kidlock/ \;
           ls app/app/src/main/kotlin/com/kidlock/
 
       - name: Install build tools
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" 2>/dev/null || true
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" 2>/dev/null || true
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
       - name: Build Release APK
-        run: |
-          cd app
-          ./gradlew assembleRelease --no-daemon
+        run: cd app && ./gradlew assembleRelease --no-daemon
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
