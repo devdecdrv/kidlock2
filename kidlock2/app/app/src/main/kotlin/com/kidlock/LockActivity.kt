@@ -5,6 +5,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -18,10 +19,13 @@ class LockActivity : Activity() {
         fun dismiss() {
             val inst = instance ?: return
             inst.runOnUiThread {
-                inst.window.clearFlags(
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    inst.setShowWhenLocked(false)
+                } else {
+                    @Suppress("DEPRECATION")
+                    inst.window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+                }
+                inst.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 inst.finish()
                 instance = null
             }
@@ -58,11 +62,19 @@ class LockActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instance = this
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
         window.addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
         setContentView(R.layout.activity_lock)
