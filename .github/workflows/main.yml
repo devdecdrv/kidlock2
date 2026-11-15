@@ -25,13 +25,22 @@ jobs:
           mkdir -p app/gradle/wrapper
           curl -o app/gradlew https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradlew
           curl -o app/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar
-          curl -o app/gradle/wrapper/gradle-wrapper.properties https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.properties
           chmod +x app/gradlew
+          cat > app/gradle/wrapper/gradle-wrapper.properties << 'PROPS'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROPS
+
+      - name: Show repo structure
+        run: find . -type f | head -60
 
       - name: Build Release APK
         run: |
           cd app
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --stacktrace
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
