@@ -28,29 +28,29 @@ jobs:
           chmod +x app/gradlew
           printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n' > app/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Ensure settings.gradle
+      - name: Write settings.gradle
         run: |
-          printf 'pluginManagement {\n    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }\n}\ndependencyResolutionManagement {\n    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\n    repositories {\n        google()\n        mavenCentral()\n    }\n}\nrootProject.name = "kidlock"\ninclude ":app"\n' > app/settings.gradle
+          printf 'rootProject.name = "kidlock"\ninclude ":app"\n' > app/settings.gradle
 
-      - name: Create app module build.gradle
+      - name: Write project build.gradle
+        run: |
+          printf 'buildscript {\n    repositories {\n        google()\n        mavenCentral()\n    }\n    dependencies {\n        classpath "com.android.tools.build:gradle:8.2.0"\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22"\n    }\n}\nallprojects {\n    repositories {\n        google()\n        mavenCentral()\n    }\n}\n' > app/build.gradle
+
+      - name: Create app module
         run: |
           mkdir -p app/app
-          printf 'plugins {\n    id "com.android.application"\n    id "kotlin-android"\n}\n\nandroid {\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.kidlock"\n        minSdk 26\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n            minifyEnabled false\n        }\n    }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }\n    kotlinOptions {\n        jvmTarget = "1.8"\n    }\n    sourceSets {\n        main {\n            manifest.srcFile "src/main/AndroidManifest.xml"\n            java.srcDirs = ["src/main/kotlin"]\n            res.srcDirs = ["src/main/res"]\n        }\n    }\n}\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.12.0"\n    implementation "androidx.appcompat:appcompat:1.6.1"\n}\n' > app/app/build.gradle
+          printf 'apply plugin: "com.android.application"\napply plugin: "kotlin-android"\n\nandroid {\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.kidlock"\n        minSdk 26\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n            minifyEnabled false\n        }\n    }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }\n    kotlinOptions {\n        jvmTarget = "1.8"\n    }\n    sourceSets {\n        main {\n            manifest.srcFile "src/main/AndroidManifest.xml"\n            java.srcDirs = ["src/main/kotlin"]\n            res.srcDirs = ["src/main/res"]\n        }\n    }\n}\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.12.0"\n    implementation "androidx.appcompat:appcompat:1.6.1"\n}\n' > app/app/build.gradle
 
-      - name: Move source files into app/app/src
+      - name: Move source files
         run: |
           mkdir -p app/app/src/main/kotlin/com/kidlock
           mkdir -p app/app/src/main/res/xml
           mkdir -p app/app/src/main/res/layout
           if [ -d app/src ]; then
-            cp -r app/src/main/kotlin app/app/src/main/ 2>/dev/null || true
-            cp -r app/src/main/res app/app/src/main/ 2>/dev/null || true
-            cp app/src/main/AndroidManifest.xml app/app/src/main/ 2>/dev/null || true
+            cp -r app/src/. app/app/src/ 2>/dev/null || true
           fi
           if [ -d src ]; then
-            cp -r src/main/kotlin app/app/src/main/ 2>/dev/null || true
-            cp -r src/main/res app/app/src/main/ 2>/dev/null || true
-            cp src/main/AndroidManifest.xml app/app/src/main/ 2>/dev/null || true
+            cp -r src/. app/app/src/ 2>/dev/null || true
           fi
 
       - name: Show final structure
