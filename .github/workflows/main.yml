@@ -102,7 +102,7 @@ jobs:
           ls app/app/src/main/kotlin/com/kidlock/
 
       - name: Build Debug APK
-        run: cd app && ./gradlew assembleDebug --no-daemon
+        run: cd app && ./gradlew assembleDebug --no-daemon --info 2>&1 | tail -150
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
