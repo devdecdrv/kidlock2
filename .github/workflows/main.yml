@@ -34,13 +34,19 @@ jobs:
             printf 'pluginManagement {\n    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }\n}\ndependencyResolutionManagement {\n    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\n    repositories {\n        google()\n        mavenCentral()\n    }\n}\nrootProject.name = "kidlock"\ninclude ":app"\n' > app/settings.gradle
           fi
 
-      - name: Show structure
-        run: find app -maxdepth 3 -type f
+      - name: Show full structure
+        run: find . -type f -not -path '*/.git/*' | sort
+
+      - name: Show settings.gradle content
+        run: cat app/settings.gradle
+
+      - name: Show app build.gradle content
+        run: cat app/app/build.gradle
 
       - name: Build Release APK
         run: |
           cd app
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
