@@ -28,6 +28,10 @@ jobs:
           chmod +x app/gradlew
           printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n' > app/gradle/wrapper/gradle-wrapper.properties
 
+      - name: Write gradle.properties
+        run: |
+          printf "android.useAndroidX=true\nandroid.enableJetifier=true\norg.gradle.jvmargs=-Xmx2048m\n" > app/gradle.properties
+
       - name: Write settings.gradle
         run: |
           printf 'rootProject.name = "kidlock"\ninclude ":app"\n' > app/settings.gradle
