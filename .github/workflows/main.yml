@@ -90,11 +90,6 @@ jobs:
           find . -name "*.kt" -not -path "*/build/*" -not -path "*/.git/*" -exec cp {} app/app/src/main/kotlin/com/kidlock/ \;
           ls app/app/src/main/kotlin/com/kidlock/
 
-      - name: Install build tools
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" 2>/dev/null || true
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-
       - name: Build Release APK
         run: cd app && ./gradlew assembleRelease --no-daemon
         env:
@@ -103,6 +98,8 @@ jobs:
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
         id: sign_apk
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
         with:
           releaseDirectory: app/app/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
