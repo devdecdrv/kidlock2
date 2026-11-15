@@ -20,8 +20,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Make gradlew executable
-        run: chmod +x app/gradlew
+      - name: Setup Gradle wrapper
+        run: |
+          mkdir -p app/gradle/wrapper
+          curl -o app/gradlew https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradlew
+          curl -o app/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar
+          curl -o app/gradle/wrapper/gradle-wrapper.properties https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.properties
+          chmod +x app/gradlew
 
       - name: Build Release APK
         run: |
